@@ -1,0 +1,368 @@
+=====================================================================
+ CALCULADORA TRIGONOMÉTRICA + TEOREMA DE PITÁGORAS
+=====================================================================
+Programa en Python (NumPy + pandas + Matplotlib) que:
+
+    1. Resuelve el Teorema de Pitágoras (hipotenusa o cateto faltante).
+    2. Calcula las relaciones trigonométricas de un triángulo
+       rectángulo (sen, cos, tan, cosec, sec, cotan), a partir de
+       los dos catetos o de un ángulo y un lado.
+    3. Calcula la altura de un objeto con el método del ángulo
+       medido a distancia conocida.
+    4. Genera la tabla de datos de 4 alumnos (Danilo, Lautaro,
+       Nehuen y Alex) con objetos típicos de una escuela.
+
+Método de medición usado en la tabla
+------------------------------------
+El alumno se para a una "Distancia" del objeto y mide con un
+transportador el "Ángulo" (se lee el ángulo suplementario, por eso
+la elevación real es 180° - Ángulo). Entonces:
+
+    Alt. calculada CO = Distancia * tan(180° - Ángulo)
+    Resultado final   = Alt. calculada CO + Alt. ojos
+    Diferencia        = Resultado final - Prueba (altura medida con cinta)
+
+Modos de uso:
+    python3 calculadora_trigonometrica.py           -> menú interactivo
+    python3 calculadora_trigonometrica.py --tabla    -> genera la tabla
+
+Instalación de dependencias:
+    pip install numpy pandas matplotlib
+=====================================================================
+"""
+
+import sys
+import numpy as np
+import pandas as pd
+import matplotlib.pyplot as plt
+
+
+# =====================================================================
+# 1. TEOREMA DE PITÁGORAS
+# =====================================================================
+def teorema_pitagoras(a=None, b=None, c=None):
+    """
+    Resuelve a² + b² = c² dejando UNO de los tres lados como None.
+
+    a, b : catetos      c : hipotenusa
+
+    Retorna un diccionario con los tres lados y la fórmula usada.
+    """
+    datos = [a, b, c]
+    if sum(v is None for v in datos) != 1:
+        raise ValueError("Dejá exactamente un lado sin valor (el que querés calcular).")
+    if any(v is not None and v <= 0 for v in datos):
+        raise ValueError("Los lados deben ser números positivos.")
+
+    if c is None:
+        c = float(np.hypot(a, b))
+        formula = f"c = √(a² + b²) = √({a}² + {b}²)"
+        incognita = "hipotenusa (c)"
+        valor = c
+    elif a is None:
+        if c <= b:
+            raise ValueError("La hipotenusa debe ser mayor que el cateto.")
+        a = float(np.sqrt(c**2 - b**2))
+        formula = f"a = √(c² - b²) = √({c}² - {b}²)"
+        incognita = "cateto (a)"
+        valor = a
+    else:
+        if c <= a:
+            raise ValueError("La hipotenusa debe ser mayor que el cateto.")
+        b = float(np.sqrt(c**2 - a**2))
+        formula = f"b = √(c² - a²) = √({c}² - {a}²)"
+        incognita = "cateto (b)"
+        valor = b
+
+    return {"cateto_a": a, "cateto_b": b, "hipotenusa_c": c,
+            "incognita": incognita, "valor": valor, "formula": formula}
+
+
+# =====================================================================
+# 2. RELACIONES TRIGONOMÉTRICAS
+# =====================================================================
+def relaciones_desde_catetos(co, ca):
+    """
+    Relaciones trigonométricas a partir del cateto opuesto (co) y el
+    cateto adyacente (ca) respecto del ángulo alfa. La hipotenusa se
+    obtiene con el Teorema de Pitágoras.
+    """
+    if co <= 0 or ca <= 0:
+        raise ValueError("Los catetos deben ser positivos.")
+
+    co, ca = float(co), float(ca)
+    hip = float(np.hypot(co, ca))               # Pitágoras
+    alfa = float(np.degrees(np.arctan2(co, ca)))
+
+    return {
+        "cateto_opuesto": float(co),
+        "cateto_adyacente": float(ca),
+        "hipotenusa": hip,
+        "angulo_alfa": alfa,
+        "angulo_beta": 90.0 - alfa,
+        "sen": co / hip,
+        "cos": ca / hip,
+        "tan": co / ca,
+        "cosec": hip / co,
+        "sec": hip / ca,
+        "cotan": ca / co,
+    }
+
+
+def relaciones_desde_angulo(angulo, lado, tipo_lado="hip"):
+    """
+    Relaciones trigonométricas a partir de un ángulo agudo (en grados)
+    y un lado conocido.
+
+    tipo_lado : "hip" (hipotenusa), "co" (cateto opuesto)
+                o "ca" (cateto adyacente)
+    """
+    if not 0 < angulo < 90:
+        raise ValueError("El ángulo debe estar entre 0° y 90° (exclusivo).")
+    if lado <= 0:
+        raise ValueError("El lado debe ser positivo.")
+
+    rad = np.radians(angulo)
+    s, c, t = np.sin(rad), np.cos(rad), np.tan(rad)
+
+    if tipo_lado == "hip":
+        co, ca = lado * s, lado * c
+    elif tipo_lado == "co":
+        co, ca = lado, lado / t
+    elif tipo_lado == "ca":
+        co, ca = lado * t, lado
+    else:
+        raise ValueError("tipo_lado debe ser 'hip', 'co' o 'ca'.")
+
+    return relaciones_desde_catetos(co, ca)
+
+
+# =====================================================================
+# 3. ALTURA DE UN OBJETO (método del ángulo)
+# =====================================================================
+def calcular_altura(distancia, alt_ojos, angulo_medido):
+    """
+    Calcula la altura de un objeto.
+
+    distancia     : distancia horizontal al objeto (m)
+    alt_ojos      : altura de los ojos del observador (m)
+    angulo_medido : ángulo leído en el transportador (°); la elevación
+                    real es 180° - angulo_medido.
+    """
+    elevacion = 180.0 - angulo_medido
+    co = distancia * np.tan(np.radians(elevacion))      # cateto opuesto
+    total = co + alt_ojos
+    hip = np.hypot(distancia, co)                       # Pitágoras (línea de visión)
+
+    return {
+        "elevacion": float(elevacion),
+        "alt_calculada_co": float(co),
+        "resultado_final": float(total),
+        "linea_de_vision": float(hip),
+        "sen": float(co / hip),
+        "cos": float(distancia / hip),
+        "tan": float(co / distancia),
+    }
+
+
+# =====================================================================
+# 4. TABLA DE ALUMNOS (objetos típicos de una escuela)
+# =====================================================================
+# Datos aproximados. "prueba" es la altura real medida con cinta métrica.
+DATOS_ALUMNOS = [
+    {"alumno": "Danilo",   "objeto": "Mástil de la bandera",
+     "distancia": 6.0, "alt_ojos": 1.70, "angulo": 138, "prueba": 7.20},
+    {"alumno": "Lautaro",  "objeto": "Marcos de Puertas Patio",
+     "distancia": 5.5, "alt_ojos": 1.68, "angulo": 145, "prueba": 5.40},
+    {"alumno": "Nehuen",   "objeto": "Marcos de Puertas Patio",
+     "distancia": 6.0, "alt_ojos": 1.75, "angulo": 144, "prueba": 6.20},
+    {"alumno": "Alex",     "objeto": "Poste de luz",
+     "distancia": 7.5, "alt_ojos": 1.82, "angulo": 139, "prueba": 8.50},
+]
+
+COLUMNAS = [
+    "Objeto", "Distancia (m)", "Alt. ojos (m)", "Ángulo (°)", "Prueba (m)",
+    "Alt. calculada CO (m)", "Resultado final (m)", "Diferencia vs prueba (m)",
+]
+
+
+def crear_tabla(datos=None):
+    """Crea el DataFrame con las columnas de la tabla de resultados."""
+    datos = datos or DATOS_ALUMNOS
+    filas = []
+    for d in datos:
+        r = calcular_altura(d["distancia"], d["alt_ojos"], d["angulo"])
+        filas.append([
+            f"{d['objeto']} ({d['alumno']})",
+            d["distancia"],
+            d["alt_ojos"],
+            d["angulo"],
+            d["prueba"],
+            round(r["alt_calculada_co"], 2),
+            round(r["resultado_final"], 2),
+            round(r["resultado_final"] - d["prueba"], 2),
+        ])
+    return pd.DataFrame(filas, columns=COLUMNAS)
+
+
+def crear_detalle_trigonometrico(datos=None):
+    """Tabla complementaria con Pitágoras y relaciones trigonométricas."""
+    datos = datos or DATOS_ALUMNOS
+    filas = []
+    for d in datos:
+        r = calcular_altura(d["distancia"], d["alt_ojos"], d["angulo"])
+        filas.append([
+            d["alumno"],
+            round(r["elevacion"], 1),
+            round(r["alt_calculada_co"], 2),
+            d["distancia"],
+            round(r["linea_de_vision"], 2),
+            round(r["sen"], 4),
+            round(r["cos"], 4),
+            round(r["tan"], 4),
+        ])
+    return pd.DataFrame(filas, columns=[
+        "Alumno", "Elevación (°)", "Cateto opuesto (m)", "Cateto adyacente (m)",
+        "Hipotenusa (m)", "sen", "cos", "tan",
+    ])
+
+
+def guardar_tabla_png(df, archivo="tabla_alturas.png"):
+    """Dibuja la tabla con estilo oscuro (parecido a un notebook)."""
+    texto = []
+    for idx, fila in df.iterrows():
+        celdas = [str(idx), fila["Objeto"]]
+        for col in COLUMNAS[1:]:
+            valor = fila[col]
+            celdas.append(f"{int(valor)}" if col == "Ángulo (°)" else f"{valor:.2f}")
+        texto.append(celdas)
+
+    fig, ax = plt.subplots(figsize=(15, 0.7 * len(df) + 1.6))
+    fig.patch.set_facecolor("#1e1e1e")
+    ax.axis("off")
+
+    tabla = ax.table(cellText=texto, colLabels=[""] + COLUMNAS,
+                     cellLoc="center", loc="center")
+    tabla.auto_set_font_size(False)
+    tabla.set_fontsize(11)
+    tabla.scale(1, 2.0)
+    tabla.auto_set_column_width(list(range(len(COLUMNAS) + 1)))
+
+    for (fila, _), celda in tabla.get_celld().items():
+        celda.set_edgecolor("#1e1e1e")
+        if fila == 0:
+            celda.set_facecolor("#1e1e1e")
+            celda.set_text_props(color="white", fontweight="bold")
+        else:
+            celda.set_facecolor("#444444" if fila % 2 == 1 else "#2b2b2b")
+            celda.set_text_props(color="white")
+
+    plt.savefig(archivo, dpi=150, facecolor=fig.get_facecolor(), bbox_inches="tight")
+    plt.close()
+    return archivo
+
+
+def generar_tabla_completa(guardar=True):
+    """Muestra la tabla de los 4 alumnos y (opcional) la guarda en CSV y PNG."""
+    df = crear_tabla()
+    fmt = lambda v: f"{v:.2f}"
+
+    print("\nTABLA DE RESULTADOS")
+    print(df.to_string(float_format=fmt))
+
+    print("\nDETALLE (Pitágoras y relaciones trigonométricas)")
+    print(crear_detalle_trigonometrico().to_string(index=False))
+
+    if guardar:
+        df.to_csv("tabla_alturas.csv", index=False, encoding="utf-8-sig")
+        png = guardar_tabla_png(df)
+        print(f"\nArchivos guardados: tabla_alturas.csv  y  {png}")
+    return df
+
+
+# =====================================================================
+# 5. MENÚ INTERACTIVO
+# =====================================================================
+def _leer_numero(mensaje, opcional=False):
+    texto = input(mensaje).strip().replace(",", ".")
+    if texto == "":
+        if opcional:
+            return None
+        raise ValueError("Tenés que ingresar un número.")
+    return float(texto)
+
+
+def _imprimir_relaciones(r):
+    print("\nResultado:")
+    print(f"  Cateto opuesto:     {r['cateto_opuesto']:.4f}")
+    print(f"  Cateto adyacente:   {r['cateto_adyacente']:.4f}")
+    print(f"  Hipotenusa:         {r['hipotenusa']:.4f}")
+    print(f"  Ángulo alfa:        {r['angulo_alfa']:.2f}°")
+    print(f"  Ángulo beta:        {r['angulo_beta']:.2f}°")
+    for nombre in ("sen", "cos", "tan", "cosec", "sec", "cotan"):
+        print(f"  {nombre:<6}              {r[nombre]:.4f}")
+
+
+def menu():
+    print("=" * 60)
+    print("   CALCULADORA TRIGONOMÉTRICA Y TEOREMA DE PITÁGORAS")
+    print("=" * 60)
+    while True:
+        print("\n1) Teorema de Pitágoras")
+        print("2) Relaciones trigonométricas (desde los catetos)")
+        print("3) Relaciones trigonométricas (desde un ángulo y un lado)")
+        print("4) Calcular altura de un objeto")
+        print("5) Generar tabla de los 4 alumnos")
+        print("0) Salir")
+        opcion = input("\nElegí una opción: ").strip()
+
+        try:
+            if opcion == "1":
+                print("Dejá en blanco el lado que querés calcular.")
+                a = _leer_numero("Cateto a: ", opcional=True)
+                b = _leer_numero("Cateto b: ", opcional=True)
+                c = _leer_numero("Hipotenusa c: ", opcional=True)
+                r = teorema_pitagoras(a, b, c)
+                print(f"\n  {r['formula']}")
+                print(f"  Resultado -> {r['incognita']} = {r['valor']:.4f}")
+
+            elif opcion == "2":
+                co = _leer_numero("Cateto opuesto: ")
+                ca = _leer_numero("Cateto adyacente: ")
+                _imprimir_relaciones(relaciones_desde_catetos(co, ca))
+
+            elif opcion == "3":
+                ang = _leer_numero("Ángulo agudo (°): ")
+                tipo = input("¿Qué lado conocés? (hip / co / ca): ").strip().lower()
+                lado = _leer_numero("Longitud de ese lado: ")
+                _imprimir_relaciones(relaciones_desde_angulo(ang, lado, tipo))
+
+            elif opcion == "4":
+                dist = _leer_numero("Distancia al objeto (m): ")
+                ojos = _leer_numero("Altura de los ojos (m): ")
+                ang = _leer_numero("Ángulo medido en el transportador (°): ")
+                r = calcular_altura(dist, ojos, ang)
+                print("\nResultado:")
+                print(f"  Elevación real:        {r['elevacion']:.1f}°")
+                print(f"  Alt. calculada (CO):   {r['alt_calculada_co']:.2f} m")
+                print(f"  Altura final:          {r['resultado_final']:.2f} m")
+                print(f"  Línea de visión:       {r['linea_de_vision']:.2f} m")
+
+            elif opcion == "5":
+                generar_tabla_completa()
+
+            elif opcion == "0":
+                print("¡Hasta luego!")
+                break
+            else:
+                print("Opción inválida, intentá de nuevo.")
+
+        except Exception as e:
+            print(f"\n⚠ Error: {e}")
+
+
+if __name__ == "__main__":
+    if "--tabla" in sys.argv:
+        generar_tabla_completa()
+    else:
+        menu()
